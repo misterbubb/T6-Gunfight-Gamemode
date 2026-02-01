@@ -1,33 +1,34 @@
-$plutoniumPath = "$env:LOCALAPPDATA\Plutonium\storage\t6"
-$rawPath = "$plutoniumPath\raw\maps\mp\gametypes"
-$modsPath = "$plutoniumPath\mods"
-
-Write-Host "Installing Gunfight..."
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "Gunfight Installer" -ForegroundColor Cyan
+Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-New-Item -ItemType Directory -Path $rawPath -Force | Out-Null
-New-Item -ItemType Directory -Path $modsPath -Force | Out-Null
+$modsPath = "$env:LOCALAPPDATA\Plutonium\storage\t6\mods"
 
-$sdPath = "$rawPath\sd.gsc"
-if (Test-Path $sdPath) {
-    $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-    Copy-Item $sdPath "$rawPath\sd_backup_$timestamp.gsc"
-    Write-Host "Backed up original S&D"
+if (-not (Test-Path "$env:LOCALAPPDATA\Plutonium\storage\t6")) {
+    Write-Host "ERROR: Plutonium T6 directory not found!" -ForegroundColor Red
+    pause
+    exit 1
 }
 
-Copy-Item ".\gunfight_mp\maps\mp\gametypes\sd.gsc" $sdPath -Force
-Write-Host "Installed gametype"
+Write-Host "Installing Gunfight mod..." -ForegroundColor Green
 
-$modDestination = "$modsPath\gunfight_mp"
-if (Test-Path $modDestination) {
-    Remove-Item $modDestination -Recurse -Force
+if (-not (Test-Path $modsPath)) {
+    New-Item -ItemType Directory -Path $modsPath -Force | Out-Null
 }
-Copy-Item ".\gunfight_mp" $modDestination -Recurse -Force
-Write-Host "Installed mod files"
+
+$modDestPath = "$modsPath\gunfight_mp"
+if (Test-Path $modDestPath) {
+    Remove-Item $modDestPath -Recurse -Force
+}
+
+Copy-Item "gunfight_mp" $modDestPath -Recurse -Force
 
 Write-Host ""
-Write-Host "Done! Load Search & Destroy in Custom Games to play Gunfight."
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "Installation Complete!" -ForegroundColor Green
+Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "To restore S&D, delete: $sdPath"
+Write-Host "Load the mod from the Plutonium mods menu" -ForegroundColor Yellow
 Write-Host ""
-Read-Host "Press Enter to close"
+pause
