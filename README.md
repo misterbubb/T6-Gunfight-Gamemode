@@ -1,5 +1,10 @@
 # Gunfight for Black Ops 2
 
+<p align="center">
+  <img width="160" height="185" alt="image"
+       src="https://github.com/user-attachments/assets/71a40285-6a26-4555-bf08-bb59f0597dba" />
+</p>
+
 2v2 gamemode with random loadouts.
 
 ## Installation
