@@ -5,18 +5,12 @@
        src="https://github.com/user-attachments/assets/71a40285-6a26-4555-bf08-bb59f0597dba" />
 </p>
 
-2v2 gamemode with random loadouts.
+<p align="center">
+  "Small team, multi-round cage matches. First team to reach the round win limit wins."
+</p>
 
 ## Installation
 
 Run `install_gunfight_sd.ps1` or manually copy files:
 - `gunfight_mp` folder → `%localappdata%\Plutonium\storage\t6\mods\`
 - `sd.gsc` → `%localappdata%\Plutonium\storage\t6\raw\maps\mp\gametypes\`
-
-## Features
-
-- Random loadouts every 2 rounds
-- One life per round
-- 2 minute rounds
-- Overtime if time expires (health-based winner)
-- No killstreaks or custom classes
