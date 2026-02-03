@@ -103,6 +103,7 @@ onstartgametype()
     
     if(!isDefined(game["gunfight_loadouts_initialized"]))
     {
+        game["gunfight_used_primaries"] = [];
         game["gunfight_loadouts"] = [];
         game["gunfight_loadouts"][0] = selectRandomLoadout();
         game["gunfight_loadouts"][1] = selectRandomLoadout();
@@ -117,6 +118,8 @@ onstartgametype()
     }
     
     level.gunfight_current_loadout = game["gunfight_loadouts"][game["gunfight_current_loadout_index"]];
+    
+    level thread teamHealthHUD();
 }
 
 onroundswitch()
@@ -140,6 +143,16 @@ onspawnplayer(predictedspawn)
         self spawn(spawnpoint.origin, spawnpoint.angles, "sd");
 }
 
+isInArray(array, value)
+{
+    for(i = 0; i < array.size; i++)
+    {
+        if(array[i] == value)
+            return true;
+    }
+    return false;
+}
+
 selectRandomLoadout()
 {
     loadout = [];
@@ -148,22 +161,38 @@ selectRandomLoadout()
     primaries[0] = "mp7_mp";
     primaries[1] = "pdw57_mp";
     primaries[2] = "vector_mp";
-    primaries[3] = "tar21_mp";
-    primaries[4] = "an94_mp";
-    primaries[5] = "scar_mp";
-    primaries[6] = "hk416_mp";
-    primaries[7] = "type95_mp";
-    primaries[8] = "870mcs_mp";
-    primaries[9] = "ksg_mp";
-    primaries[10] = "saiga12_mp";
-    primaries[11] = "dsr50_mp";
-    primaries[12] = "ballista_mp";
+    primaries[3] = "insas_mp";
+    primaries[4] = "qcw05_mp";
+    primaries[5] = "evoskorpion_mp";
+    primaries[6] = "peacekeeper_mp";
+    primaries[7] = "tar21_mp";
+    primaries[8] = "type95_mp";
+    primaries[9] = "sig556_mp";
+    primaries[10] = "sa58_mp";
+    primaries[11] = "hk416_mp";
+    primaries[12] = "scar_mp";
+    primaries[13] = "saritch_mp";
+    primaries[14] = "xm8_mp";
+    primaries[15] = "an94_mp";
+    primaries[16] = "870mcs_mp";
+    primaries[17] = "saiga12_mp";
+    primaries[18] = "ksg_mp";
+    primaries[19] = "srm1216_mp";
+    primaries[20] = "mk48_mp";
+    primaries[21] = "qbb95_mp";
+    primaries[22] = "lsat_mp";
+    primaries[23] = "hamr_mp";
+    primaries[24] = "svu_mp";
+    primaries[25] = "dsr50_mp";
+    primaries[26] = "ballista_mp";
+    primaries[27] = "as50_mp";
     
     secondaries = [];
     secondaries[0] = "kard_mp";
     secondaries[1] = "fiveseven_mp";
     secondaries[2] = "fnp45_mp";
     secondaries[3] = "judge_mp";
+    secondaries[4] = "beretta93r_mp";
     
     attachments = [];
     attachments[0] = "";
@@ -175,20 +204,44 @@ selectRandomLoadout()
     attachments[6] = "+extclip";
     attachments[7] = "+fmj";
     attachments[8] = "+silencer";
+    attachments[9] = "+stock";
+    attachments[10] = "+quickdraw";
+    attachments[11] = "+holo";
+    attachments[12] = "+dualclip";
+    attachments[13] = "+rf";
+    attachments[14] = "+extbarrel";
     
     lethals = [];
     lethals[0] = "frag_grenade_mp";
     lethals[1] = "sticky_grenade_mp";
     lethals[2] = "hatchet_mp";
     lethals[3] = "claymore_mp";
+    lethals[4] = "bouncingbetty_mp";
     
     tacticals = [];
     tacticals[0] = "flash_grenade_mp";
     tacticals[1] = "concussion_grenade_mp";
     tacticals[2] = "smoke_grenade_mp";
     tacticals[3] = "emp_grenade_mp";
+    tacticals[4] = "willy_pete_mp";
     
     basePrimary = primaries[randomInt(primaries.size)];
+    
+    if(isDefined(game["gunfight_used_primaries"]) && game["gunfight_used_primaries"].size > 0)
+    {
+        attempts = 0;
+        while(isInArray(game["gunfight_used_primaries"], basePrimary) && attempts < 20)
+        {
+            basePrimary = primaries[randomInt(primaries.size)];
+            attempts++;
+        }
+    }
+    
+    if(!isDefined(game["gunfight_used_primaries"]))
+        game["gunfight_used_primaries"] = [];
+    
+    game["gunfight_used_primaries"][game["gunfight_used_primaries"].size] = basePrimary;
+    
     primaryAttachment = attachments[randomInt(attachments.size)];
     
     loadout["primary"] = basePrimary + primaryAttachment;
@@ -240,7 +293,7 @@ ontimelimit()
     
     game["gunfight_overtime_triggered"] = 1;
     
-    iPrintLnBold("^1OVERTIME: 15 seconds remaining!");
+    level thread overtimeCountdown();
     
     wait 15;
     
@@ -300,6 +353,57 @@ ontimelimit()
     }
     
     game["gunfight_overtime_triggered"] = undefined;
+}
+
+overtimeCountdown()
+{
+    level endon("game_ended");
+    
+    countdownHUD = createServerFontString("hudbig", 2.0);
+    countdownHUD setPoint("TOP", "TOP", 0, 100);
+    countdownHUD.color = (1, 0, 0);
+    countdownHUD.hidewheninmenu = true;
+    countdownHUD.glowcolor = (1, 0.3, 0);
+    countdownHUD.glowAlpha = 0.5;
+    
+    for(i = 15; i > 0; i--)
+    {
+        countdownHUD setText("^1OVERTIME: " + i);
+        wait 1;
+    }
+    
+    countdownHUD destroy();
+}
+
+teamHealthHUD()
+{
+    level endon("game_ended");
+    
+    healthHUD = createServerFontString("hudbig", 1.4);
+    healthHUD setPoint("TOP", "TOP", 0, 5);
+    healthHUD.hidewheninmenu = true;
+    
+    while(true)
+    {
+        alliesHealth = 0;
+        axisHealth = 0;
+        
+        players = level.players;
+        for(i = 0; i < players.size; i++)
+        {
+            if(!isDefined(players[i]) || !isAlive(players[i]))
+                continue;
+            
+            if(players[i].team == "allies")
+                alliesHealth += players[i].health;
+            else if(players[i].team == "axis")
+                axisHealth += players[i].health;
+        }
+        
+        healthHUD setText("^5" + alliesHealth + " ^7- ^1" + axisHealth);
+        
+        wait 0.05;
+    }
 }
 
 givecustomloadout(takeallweapons, alreadyspawned)
