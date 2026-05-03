@@ -1,3 +1,6 @@
+// Gunfight Gametype — v1.3
+// T6 Plutonium | Based on BO2 Search & Destroy framework
+
 #include maps\mp\gametypes\_globallogic_audio;
 #include maps\mp\gametypes\_globallogic_score;
 #include maps\mp\gametypes\_spawnlogic;
@@ -14,54 +17,52 @@ main()
     maps\mp\gametypes\_globallogic::init();
     maps\mp\gametypes\_callbacksetup::setupcallbacks();
     maps\mp\gametypes\_globallogic::setupcallbacks();
-    
+
     maps\mp\_utility::registerroundswitch(0, 9);
     maps\mp\_utility::registertimelimit(0, 1440);
     maps\mp\_utility::registerscorelimit(0, 500);
     maps\mp\_utility::registerroundlimit(0, 12);
     maps\mp\_utility::registerroundwinlimit(0, 10);
     maps\mp\_utility::registernumlives(1, 1);
-    
+
     maps\mp\gametypes\_globallogic::registerfriendlyfiredelay(level.gametype, 15, 0, 1440);
-    
-    level.teambased = 1;
-    level.overrideteamscore = 1;
-    level.endgameonscorelimit = 0;
-    
+
+    level.teambased             = 1;
+    level.overrideteamscore     = 1;
+    level.endgameonscorelimit   = 0;
     level.disableClassSelection = 1;
-    level.disableweapondrop = 1;
+    level.disableweapondrop     = 1;
     level.loadoutkillstreaksenabled = 0;
-    level.maxkillstreaks = 0;
-    
-    level.useBombTimer = 0;
-    level.bombPlanted = 0;
-    level.bombExploded = 0;
-    level.bombDefused = 0;
-    
-    setDvar("scr_sd_bombtimer", 0);
-    setDvar("scr_sd_defusetime", 0);
-    setDvar("scr_sd_planttime", 0);
-    setDvar("scr_player_forcerespawn", 0);
-    setDvar("scr_game_allowkillcam", 1);
+    level.maxkillstreaks        = 0;
+    level.useBombTimer          = 0;
+    level.bombPlanted           = 0;
+    level.bombExploded          = 0;
+    level.bombDefused           = 0;
+
+    setDvar("scr_sd_bombtimer",           0);
+    setDvar("scr_sd_defusetime",          0);
+    setDvar("scr_sd_planttime",           0);
+    setDvar("scr_player_forcerespawn",    0);
+    setDvar("scr_game_allowkillcam",      1);
     setDvar("scr_game_disableweapondrop", 1);
-    
-    level.onstartgametype = ::onstartgametype;
-    level.onspawnplayer = ::onspawnplayer;
-    level.onspawnplayerunified = ::onspawnplayerunified;
-    level.onroundswitch = ::onroundswitch;
-    level.ondeadevent = ::ondeadevent;
-    level.ontimelimit = ::ontimelimit;
-    level.givecustomloadout = ::givecustomloadout;
-    
-    game["strings"]["change_class"] = "";
-    game["strings"]["press_to_spawn"] = "Press ^3[{+activate}]^7 to spawn";
-    game["menu_changeclass"] = "";
+
+    level.onstartgametype       = ::onstartgametype;
+    level.onspawnplayer         = ::onspawnplayer;
+    level.onspawnplayerunified  = ::onspawnplayerunified;
+    level.onroundswitch         = ::onroundswitch;
+    level.ondeadevent           = ::ondeadevent;
+    level.ontimelimit           = ::ontimelimit;
+    level.givecustomloadout     = ::givecustomloadout;
+
+    game["strings"]["change_class"]  = "";
+    game["menu_changeclass"]         = "";
     game["menu_changeclass_offline"] = "";
-    game["menu_changeclass_wager"] = "";
-    game["menu_changeclass_custom"] = "";
-    
-    game["dialog"]["gametype"] = "sd_start";
-    
+    game["menu_changeclass_wager"]   = "";
+    game["menu_changeclass_custom"]  = "";
+
+    game["strings"]["press_to_spawn"] = "Press ^3[{+activate}]^7 to spawn";
+    game["dialog"]["gametype"]        = "sd_start";
+
     setscoreboardcolumns("score", "kills", "deaths", "kdratio", "assists");
 }
 
@@ -78,47 +79,44 @@ getDvarIntDefault(dvar, defaultval)
 onstartgametype()
 {
     setclientnamemode("auto_change");
-    
+
     if(!isDefined(game["switchedsides"]))
         game["switchedsides"] = 0;
-    
+
     game["attackers"] = "allies";
     game["defenders"] = "axis";
-    
+
     maps\mp\gametypes\_spawning::create_map_placed_influencers();
-    
+
     level.spawnmins = (0, 0, 0);
     level.spawnmaxs = (0, 0, 0);
-    
+
     maps\mp\gametypes\_spawnlogic::placespawnpoints("mp_sd_spawn_attacker");
     maps\mp\gametypes\_spawnlogic::placespawnpoints("mp_sd_spawn_defender");
     maps\mp\gametypes\_spawnlogic::addspawnpoints("allies", "mp_sd_spawn_attacker");
-    maps\mp\gametypes\_spawnlogic::addspawnpoints("axis", "mp_sd_spawn_defender");
-    
+    maps\mp\gametypes\_spawnlogic::addspawnpoints("axis",   "mp_sd_spawn_defender");
+
     level.mapcenter = maps\mp\gametypes\_spawnlogic::findboxcenter(level.spawnmins, level.spawnmaxs);
     setmapcenter(level.mapcenter);
-    
+
     spawnpoint = maps\mp\gametypes\_spawnlogic::getrandomintermissionpoint();
     setdemointermissionpoint(spawnpoint.origin, spawnpoint.angles);
-    
+
     if(!isDefined(game["gunfight_loadouts_initialized"]))
     {
         game["gunfight_used_primaries"] = [];
-        game["gunfight_loadouts"] = [];
-        game["gunfight_loadouts"][0] = selectRandomLoadout();
-        game["gunfight_loadouts"][1] = selectRandomLoadout();
-        game["gunfight_loadouts"][2] = selectRandomLoadout();
-        game["gunfight_loadouts"][3] = selectRandomLoadout();
-        game["gunfight_loadouts"][4] = selectRandomLoadout();
-        game["gunfight_loadouts"][5] = selectRandomLoadout();
-        
+        game["gunfight_loadouts"]       = [];
+
+        for(i = 0; i < 6; i++)
+            game["gunfight_loadouts"][i] = selectRandomLoadout();
+
         game["gunfight_current_loadout_index"] = 0;
-        game["gunfight_rounds_completed"] = 0;
-        game["gunfight_loadouts_initialized"] = 1;
+        game["gunfight_rounds_completed"]      = 0;
+        game["gunfight_loadouts_initialized"]  = 1;
     }
-    
+
     level.gunfight_current_loadout = game["gunfight_loadouts"][game["gunfight_current_loadout_index"]];
-    
+
     level thread teamHealthHUD();
 }
 
@@ -135,8 +133,8 @@ onspawnplayerunified()
 onspawnplayer(predictedspawn)
 {
     spawnpoints = maps\mp\gametypes\_spawnlogic::getteamspawnpoints(self.pers["team"]);
-    spawnpoint = maps\mp\gametypes\_spawnlogic::getspawnpoint_random(spawnpoints);
-    
+    spawnpoint  = maps\mp\gametypes\_spawnlogic::getspawnpoint_random(spawnpoints);
+
     if(predictedspawn)
         self predictspawnpoint(spawnpoint.origin, spawnpoint.angles);
     else
@@ -155,19 +153,17 @@ isInArray(array, value)
 
 selectRandomLoadout()
 {
-    loadout = [];
-    
     primaries = [];
-    primaries[0] = "mp7_mp";
-    primaries[1] = "pdw57_mp";
-    primaries[2] = "vector_mp";
-    primaries[3] = "insas_mp";
-    primaries[4] = "qcw05_mp";
-    primaries[5] = "evoskorpion_mp";
-    primaries[6] = "peacekeeper_mp";
-    primaries[7] = "tar21_mp";
-    primaries[8] = "type95_mp";
-    primaries[9] = "sig556_mp";
+    primaries[0]  = "mp7_mp";
+    primaries[1]  = "pdw57_mp";
+    primaries[2]  = "vector_mp";
+    primaries[3]  = "insas_mp";
+    primaries[4]  = "qcw05_mp";
+    primaries[5]  = "evoskorpion_mp";
+    primaries[6]  = "peacekeeper_mp";
+    primaries[7]  = "tar21_mp";
+    primaries[8]  = "type95_mp";
+    primaries[9]  = "sig556_mp";
     primaries[10] = "sa58_mp";
     primaries[11] = "hk416_mp";
     primaries[12] = "scar_mp";
@@ -186,47 +182,48 @@ selectRandomLoadout()
     primaries[25] = "dsr50_mp";
     primaries[26] = "ballista_mp";
     primaries[27] = "as50_mp";
-    
+
     secondaries = [];
     secondaries[0] = "kard_mp";
     secondaries[1] = "fiveseven_mp";
     secondaries[2] = "fnp45_mp";
     secondaries[3] = "judge_mp";
     secondaries[4] = "beretta93r_mp";
-    
+
     attachments = [];
-    attachments[0] = "";
-    attachments[1] = "+reflex";
-    attachments[2] = "+acog";
-    attachments[3] = "+fastads";
-    attachments[4] = "+grip";
-    attachments[5] = "+steadyaim";
-    attachments[6] = "+extclip";
-    attachments[7] = "+fmj";
-    attachments[8] = "+silencer";
-    attachments[9] = "+stock";
+    attachments[0]  = "";
+    attachments[1]  = "+reflex";
+    attachments[2]  = "+acog";
+    attachments[3]  = "+fastads";
+    attachments[4]  = "+grip";
+    attachments[5]  = "+steadyaim";
+    attachments[6]  = "+extclip";
+    attachments[7]  = "+fmj";
+    attachments[8]  = "+silencer";
+    attachments[9]  = "+stock";
     attachments[10] = "+quickdraw";
     attachments[11] = "+holo";
     attachments[12] = "+dualclip";
     attachments[13] = "+rf";
     attachments[14] = "+extbarrel";
-    
+
     lethals = [];
     lethals[0] = "frag_grenade_mp";
     lethals[1] = "sticky_grenade_mp";
     lethals[2] = "hatchet_mp";
     lethals[3] = "claymore_mp";
     lethals[4] = "bouncingbetty_mp";
-    
+
     tacticals = [];
     tacticals[0] = "flash_grenade_mp";
     tacticals[1] = "concussion_grenade_mp";
     tacticals[2] = "smoke_grenade_mp";
     tacticals[3] = "emp_grenade_mp";
     tacticals[4] = "willy_pete_mp";
-    
+
+    // Avoid reusing a primary weapon across loadout slots (up to 20 attempts)
     basePrimary = primaries[randomInt(primaries.size)];
-    
+
     if(isDefined(game["gunfight_used_primaries"]) && game["gunfight_used_primaries"].size > 0)
     {
         attempts = 0;
@@ -236,19 +233,18 @@ selectRandomLoadout()
             attempts++;
         }
     }
-    
+
     if(!isDefined(game["gunfight_used_primaries"]))
         game["gunfight_used_primaries"] = [];
-    
+
     game["gunfight_used_primaries"][game["gunfight_used_primaries"].size] = basePrimary;
-    
-    primaryAttachment = attachments[randomInt(attachments.size)];
-    
-    loadout["primary"] = basePrimary + primaryAttachment;
+
+    loadout = [];
+    loadout["primary"]   = basePrimary + attachments[randomInt(attachments.size)];
     loadout["secondary"] = secondaries[randomInt(secondaries.size)];
-    loadout["lethal"] = lethals[randomInt(lethals.size)];
-    loadout["tactical"] = tacticals[randomInt(tacticals.size)];
-    
+    loadout["lethal"]    = lethals[randomInt(lethals.size)];
+    loadout["tactical"]  = tacticals[randomInt(tacticals.size)];
+
     return loadout;
 }
 
@@ -256,20 +252,22 @@ ondeadevent(team)
 {
     if(!isDefined(game["gunfight_rounds_completed"]))
         game["gunfight_rounds_completed"] = 0;
-    
+
     game["gunfight_rounds_completed"]++;
-    
+
+    // Rotate to the next loadout every 2 rounds
     newLoadoutIndex = int(game["gunfight_rounds_completed"] / 2);
-    
+
     if(!isDefined(game["gunfight_current_loadout_index"]))
         game["gunfight_current_loadout_index"] = 0;
-    
-    if(newLoadoutIndex != game["gunfight_current_loadout_index"] && isDefined(game["gunfight_loadouts"][newLoadoutIndex]))
+
+    if(newLoadoutIndex != game["gunfight_current_loadout_index"] &&
+       isDefined(game["gunfight_loadouts"][newLoadoutIndex]))
     {
         game["gunfight_current_loadout_index"] = newLoadoutIndex;
         level.gunfight_current_loadout = game["gunfight_loadouts"][newLoadoutIndex];
     }
-    
+
     if(team == "all")
     {
         level thread maps\mp\gametypes\_globallogic::endgame(undefined, &"MP_ROUND_DRAW");
@@ -290,24 +288,27 @@ ontimelimit()
 {
     if(isDefined(game["gunfight_overtime_triggered"]))
         return;
-    
+
     game["gunfight_overtime_triggered"] = 1;
-    
+
+    level thread clearOvertimeFlagOnEnd();
     level thread overtimeCountdown();
-    
-    wait 15;
-    
+
+    level endon("game_ended");
+
+    wait 20;
+
     alliesHealth = 0;
-    axisHealth = 0;
-    alliesAlive = 0;
-    axisAlive = 0;
-    
+    axisHealth   = 0;
+    alliesAlive  = 0;
+    axisAlive    = 0;
+
     players = level.players;
     for(i = 0; i < players.size; i++)
     {
         if(!isDefined(players[i]) || !isAlive(players[i]))
             continue;
-        
+
         if(players[i].team == "allies")
         {
             alliesHealth += players[i].health;
@@ -319,14 +320,15 @@ ontimelimit()
             axisAlive++;
         }
     }
-    
+
     if(alliesAlive == 0 && axisAlive == 0)
     {
         game["gunfight_overtime_triggered"] = undefined;
         level thread maps\mp\gametypes\_globallogic::endgame(undefined, &"MP_ROUND_DRAW");
         return;
     }
-    
+
+    // Kill the lower-HP team; tie = mutual elimination
     if(alliesHealth > axisHealth)
     {
         for(i = 0; i < players.size; i++)
@@ -351,78 +353,166 @@ ontimelimit()
                 players[i] suicide();
         }
     }
-    
+
     game["gunfight_overtime_triggered"] = undefined;
 }
 
+clearOvertimeFlagOnEnd()
+{
+    level waittill("game_ended");
+    game["gunfight_overtime_triggered"] = undefined;
+}
+
+// Overtime: reveals all enemies on radar and places skull waypoints on them
+// for the full 15-second overtime window. Objective IDs 200-299 are reserved.
 overtimeCountdown()
 {
     level endon("game_ended");
-    
+
+    players = level.players;
+    for(i = 0; i < players.size; i++)
+    {
+        if(isDefined(players[i]))
+            players[i] setclientuivisibilityflag("g_compassShowEnemies", 1);
+    }
+
+    level thread overtimeObjectives();
+    level thread overtimeVisibilityCleanup();
+
     countdownHUD = createServerFontString("hudbig", 2.0);
     countdownHUD setPoint("TOP", "TOP", 0, 100);
-    countdownHUD.color = (1, 0, 0);
+    countdownHUD.color      = (1, 0, 0);
+    countdownHUD.glowcolor  = (1, 0.3, 0);
+    countdownHUD.glowAlpha  = 0.5;
     countdownHUD.hidewheninmenu = true;
-    countdownHUD.glowcolor = (1, 0.3, 0);
-    countdownHUD.glowAlpha = 0.5;
-    
-    for(i = 15; i > 0; i--)
+
+    for(i = 20; i > 0; i--)
     {
         countdownHUD setText("^1OVERTIME: " + i);
         wait 1;
     }
-    
+
     countdownHUD destroy();
+
+    players = level.players;
+    for(i = 0; i < players.size; i++)
+    {
+        if(isDefined(players[i]))
+            players[i] setclientuivisibilityflag("g_compassShowEnemies", 0);
+    }
+
+    level notify("overtime_objectives_done");
 }
 
+overtimeVisibilityCleanup()
+{
+    level waittill("game_ended");
+
+    players = level.players;
+    for(i = 0; i < players.size; i++)
+    {
+        if(isDefined(players[i]))
+            players[i] setclientuivisibilityflag("g_compassShowEnemies", 0);
+    }
+
+    level notify("overtime_objectives_done");
+}
+
+overtimeObjectives()
+{
+    level endon("game_ended");
+    level endon("overtime_objectives_done");
+
+    players = level.players;
+    objId   = 200;
+
+    for(i = 0; i < players.size; i++)
+    {
+        if(!isDefined(players[i]) || !isAlive(players[i]))
+            continue;
+
+        player = players[i];
+
+        objective_add(objId, "active", player.origin);
+        objective_onentity(objId, player);
+        objective_icon(objId, "waypoint_skull");
+
+        for(j = 0; j < players.size; j++)
+        {
+            if(isDefined(players[j]) && players[j].team != player.team)
+                objective_setvisibletoplayer(objId, players[j]);
+        }
+
+        objId++;
+    }
+
+    level waittill("overtime_objectives_done");
+
+    for(id = 200; id < objId; id++)
+        objective_delete(id);
+}
+
+// Health is rounded to the nearest 10 to cap unique configstrings well under
+// the engine's hard limit of 488 (21 steps x 21 steps = ~441 max for 2v2).
 teamHealthHUD()
 {
     level endon("game_ended");
-    
+
     healthHUD = createServerFontString("hudbig", 1.4);
     healthHUD setPoint("TOP", "TOP", 0, 5);
     healthHUD.hidewheninmenu = true;
-    
+
+    lastString = "";
+
     while(true)
     {
         alliesHealth = 0;
-        axisHealth = 0;
-        
+        axisHealth   = 0;
+
         players = level.players;
         for(i = 0; i < players.size; i++)
         {
             if(!isDefined(players[i]) || !isAlive(players[i]))
                 continue;
-            
+
             if(players[i].team == "allies")
                 alliesHealth += players[i].health;
             else if(players[i].team == "axis")
                 axisHealth += players[i].health;
         }
-        
-        healthHUD setText("^5" + alliesHealth + " ^7- ^1" + axisHealth);
-        
-        wait 0.05;
+
+        alliesHealth = int(alliesHealth / 10) * 10;
+        axisHealth   = int(axisHealth   / 10) * 10;
+
+        newString = "^5" + alliesHealth + " ^7- ^1" + axisHealth;
+
+        if(newString != lastString)
+        {
+            healthHUD setText(newString);
+            lastString = newString;
+        }
+
+        wait 0.1;
     }
 }
 
 givecustomloadout(takeallweapons, alreadyspawned)
 {
     currentweapon = level.gunfight_current_loadout["primary"];
-    
+
     self maps\mp\gametypes\_wager::setupblankrandomplayer(takeallweapons, 0, currentweapon);
-    
+
     self giveWeapon(currentweapon);
     self giveMaxAmmo(currentweapon);
     self switchToWeapon(currentweapon);
-    
+
     if(isDefined(level.gunfight_current_loadout["secondary"]))
     {
         secondaryweapon = level.gunfight_current_loadout["secondary"];
         self giveWeapon(secondaryweapon);
         self giveMaxAmmo(secondaryweapon);
     }
-    
+
     if(isDefined(level.gunfight_current_loadout["lethal"]))
     {
         lethal = level.gunfight_current_loadout["lethal"];
@@ -430,18 +520,18 @@ givecustomloadout(takeallweapons, alreadyspawned)
         self setWeaponAmmoClip(lethal, 1);
         self switchToOffhand(lethal);
     }
-    
+
     if(isDefined(level.gunfight_current_loadout["tactical"]))
     {
         tactical = level.gunfight_current_loadout["tactical"];
         self giveWeapon(tactical);
         self setWeaponAmmoClip(tactical, 1);
     }
-    
+
     self giveWeapon("knife_mp");
-    
+
     if(!isDefined(alreadyspawned) || !alreadyspawned)
         self setspawnweapon(currentweapon);
-    
+
     return currentweapon;
 }

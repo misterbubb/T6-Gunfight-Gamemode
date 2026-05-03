@@ -11,6 +11,5 @@
 
 ## Installation
 
-Run `install_gunfight_sd.ps1` or manually copy files:
-- `gunfight_mp` folder → `%localappdata%\Plutonium\storage\t6\mods\`
-- `sd.gsc` → `%localappdata%\Plutonium\storage\t6\raw\maps\mp\gametypes\`
+Manually copy folder here: `%localappdata%\Plutonium\storage\t6\mods\`
+if the mods folder isn't there then create it yourself.
