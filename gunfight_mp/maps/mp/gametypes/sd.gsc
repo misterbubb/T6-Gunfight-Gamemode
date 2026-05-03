@@ -1,6 +1,3 @@
-// Gunfight Gametype — v1.3
-// T6 Plutonium | Based on BO2 Search & Destroy framework
-
 #include maps\mp\gametypes\_globallogic_audio;
 #include maps\mp\gametypes\_globallogic_score;
 #include maps\mp\gametypes\_spawnlogic;
@@ -8,6 +5,7 @@
 #include maps\mp\gametypes\_callbacksetup;
 #include maps\mp\gametypes\_globallogic;
 #include maps\mp\gametypes\_hud_util;
+#include maps\mp\gametypes\_gameobjects;
 #include maps\mp\gametypes\_wager;
 #include common_scripts\utility;
 #include maps\mp\_utility;
@@ -53,6 +51,7 @@ main()
     level.ondeadevent           = ::ondeadevent;
     level.ontimelimit           = ::ontimelimit;
     level.givecustomloadout     = ::givecustomloadout;
+    level.onprecachegametype    = ::onprecachegametype;
 
     game["strings"]["change_class"]  = "";
     game["menu_changeclass"]         = "";
@@ -60,8 +59,10 @@ main()
     game["menu_changeclass_wager"]   = "";
     game["menu_changeclass_custom"]  = "";
 
-    game["strings"]["press_to_spawn"] = "Press ^3[{+activate}]^7 to spawn";
-    game["dialog"]["gametype"]        = "sd_start";
+    game["strings"]["allies_eliminated"] = &"MP_ENEMIES_ELIMINATED";
+    game["strings"]["axis_eliminated"]   = &"MP_ENEMIES_ELIMINATED";
+    game["strings"]["press_to_spawn"]    = "Press ^3[{+activate}]^7 to spawn";
+    game["dialog"]["gametype"]           = "sd_start";
 
     setscoreboardcolumns("score", "kills", "deaths", "kdratio", "assists");
 }
@@ -76,6 +77,11 @@ getDvarIntDefault(dvar, defaultval)
     return getDvarInt(dvar);
 }
 
+onprecachegametype()
+{
+    precacheshader("waypoint_defend");
+}
+
 onstartgametype()
 {
     setclientnamemode("auto_change");
@@ -83,10 +89,14 @@ onstartgametype()
     if(!isDefined(game["switchedsides"]))
         game["switchedsides"] = 0;
 
-    game["attackers"] = "allies";
-    game["defenders"] = "axis";
-
     maps\mp\gametypes\_spawning::create_map_placed_influencers();
+
+    allowed = [];
+    allowed[0] = "hq";
+    maps\mp\gametypes\_gameobjects::main(allowed);
+    
+    level thread hideBombSiteModels();
+    level thread hideHardpointModels();
 
     level.spawnmins = (0, 0, 0);
     level.spawnmaxs = (0, 0, 0);
@@ -95,6 +105,8 @@ onstartgametype()
     maps\mp\gametypes\_spawnlogic::placespawnpoints("mp_sd_spawn_defender");
     maps\mp\gametypes\_spawnlogic::addspawnpoints("allies", "mp_sd_spawn_attacker");
     maps\mp\gametypes\_spawnlogic::addspawnpoints("axis",   "mp_sd_spawn_defender");
+
+    maps\mp\gametypes\_spawning::updateallspawnpoints();
 
     level.mapcenter = maps\mp\gametypes\_spawnlogic::findboxcenter(level.spawnmins, level.spawnmaxs);
     setmapcenter(level.mapcenter);
@@ -118,6 +130,7 @@ onstartgametype()
     level.gunfight_current_loadout = game["gunfight_loadouts"][game["gunfight_current_loadout_index"]];
 
     level thread teamHealthHUD();
+    level thread monitorPlayerConnections();
 }
 
 onroundswitch()
@@ -132,8 +145,29 @@ onspawnplayerunified()
 
 onspawnplayer(predictedspawn)
 {
-    spawnpoints = maps\mp\gametypes\_spawnlogic::getteamspawnpoints(self.pers["team"]);
-    spawnpoint  = maps\mp\gametypes\_spawnlogic::getspawnpoint_random(spawnpoints);
+    spawnpointname = "";
+    
+    if(game["switchedsides"])
+    {
+        if(self.pers["team"] == "allies")
+            spawnpointname = "mp_sd_spawn_defender";
+        else if(self.pers["team"] == "axis")
+            spawnpointname = "mp_sd_spawn_attacker";
+    }
+    else
+    {
+        if(self.pers["team"] == "allies")
+            spawnpointname = "mp_sd_spawn_attacker";
+        else if(self.pers["team"] == "axis")
+            spawnpointname = "mp_sd_spawn_defender";
+    }
+    
+    spawnpoints = maps\mp\gametypes\_spawnlogic::getspawnpointarray(spawnpointname);
+    
+    if(!isDefined(spawnpoints) || spawnpoints.size == 0)
+        spawnpoints = maps\mp\gametypes\_spawnlogic::getspawnpointarray("mp_sd_spawn_attacker");
+    
+    spawnpoint = maps\mp\gametypes\_spawnlogic::getspawnpoint_random(spawnpoints);
 
     if(predictedspawn)
         self predictspawnpoint(spawnpoint.origin, spawnpoint.angles);
@@ -221,21 +255,14 @@ selectRandomLoadout()
     tacticals[3] = "emp_grenade_mp";
     tacticals[4] = "willy_pete_mp";
 
-    // Avoid reusing a primary weapon across loadout slots (up to 20 attempts)
     basePrimary = primaries[randomInt(primaries.size)];
 
-    if(isDefined(game["gunfight_used_primaries"]) && game["gunfight_used_primaries"].size > 0)
+    attempts = 0;
+    while(isInArray(game["gunfight_used_primaries"], basePrimary) && attempts < 20)
     {
-        attempts = 0;
-        while(isInArray(game["gunfight_used_primaries"], basePrimary) && attempts < 20)
-        {
-            basePrimary = primaries[randomInt(primaries.size)];
-            attempts++;
-        }
+        basePrimary = primaries[randomInt(primaries.size)];
+        attempts++;
     }
-
-    if(!isDefined(game["gunfight_used_primaries"]))
-        game["gunfight_used_primaries"] = [];
 
     game["gunfight_used_primaries"][game["gunfight_used_primaries"].size] = basePrimary;
 
@@ -255,7 +282,6 @@ ondeadevent(team)
 
     game["gunfight_rounds_completed"]++;
 
-    // Rotate to the next loadout every 2 rounds
     newLoadoutIndex = int(game["gunfight_rounds_completed"] / 2);
 
     if(!isDefined(game["gunfight_current_loadout_index"]))
@@ -272,20 +298,22 @@ ondeadevent(team)
     {
         level thread maps\mp\gametypes\_globallogic::endgame(undefined, &"MP_ROUND_DRAW");
     }
-    else if(team == game["attackers"])
+    else if(team == "allies")
     {
-        maps\mp\gametypes\_globallogic_score::giveteamscoreforobjective(game["defenders"], 1);
-        level thread maps\mp\gametypes\_globallogic::endgame(game["defenders"], game["strings"][game["attackers"] + "_eliminated"]);
+        maps\mp\gametypes\_globallogic_score::giveteamscoreforobjective("axis", 1);
+        level thread maps\mp\gametypes\_globallogic::endgame("axis", &"MP_ENEMIES_ELIMINATED");
     }
-    else if(team == game["defenders"])
+    else if(team == "axis")
     {
-        maps\mp\gametypes\_globallogic_score::giveteamscoreforobjective(game["attackers"], 1);
-        level thread maps\mp\gametypes\_globallogic::endgame(game["attackers"], game["strings"][game["defenders"] + "_eliminated"]);
+        maps\mp\gametypes\_globallogic_score::giveteamscoreforobjective("allies", 1);
+        level thread maps\mp\gametypes\_globallogic::endgame("allies", &"MP_ENEMIES_ELIMINATED");
     }
 }
 
 ontimelimit()
 {
+    level endon("game_ended");
+
     if(isDefined(game["gunfight_overtime_triggered"]))
         return;
 
@@ -294,197 +322,480 @@ ontimelimit()
     level thread clearOvertimeFlagOnEnd();
     level thread overtimeCountdown();
 
-    level endon("game_ended");
+    captureOrigin = findBombSiteCapturePoint();
+    
+    if(isDefined(captureOrigin))
+        level thread overtimeCapturePoint(captureOrigin);
 
-    wait 20;
+    level waittill("overtime_complete");
 
     alliesHealth = 0;
     axisHealth   = 0;
     alliesAlive  = 0;
     axisAlive    = 0;
 
-    players = level.players;
-    for(i = 0; i < players.size; i++)
+    foreach(player in level.players)
     {
-        if(!isDefined(players[i]) || !isAlive(players[i]))
+        if(!isAlive(player))
             continue;
 
-        if(players[i].team == "allies")
+        if(player.team == "allies")
         {
-            alliesHealth += players[i].health;
+            alliesHealth += player.health;
             alliesAlive++;
         }
-        else if(players[i].team == "axis")
+        else if(player.team == "axis")
         {
-            axisHealth += players[i].health;
+            axisHealth += player.health;
             axisAlive++;
         }
     }
 
     if(alliesAlive == 0 && axisAlive == 0)
     {
-        game["gunfight_overtime_triggered"] = undefined;
         level thread maps\mp\gametypes\_globallogic::endgame(undefined, &"MP_ROUND_DRAW");
         return;
     }
 
-    // Kill the lower-HP team; tie = mutual elimination
     if(alliesHealth > axisHealth)
     {
-        for(i = 0; i < players.size; i++)
+        foreach(player in level.players)
         {
-            if(isDefined(players[i]) && isAlive(players[i]) && players[i].team == "axis")
-                players[i] suicide();
+            if(isAlive(player) && player.team == "axis")
+                player suicide();
         }
     }
     else if(axisHealth > alliesHealth)
     {
-        for(i = 0; i < players.size; i++)
+        foreach(player in level.players)
         {
-            if(isDefined(players[i]) && isAlive(players[i]) && players[i].team == "allies")
-                players[i] suicide();
+            if(isAlive(player) && player.team == "allies")
+                player suicide();
         }
     }
     else
     {
-        for(i = 0; i < players.size; i++)
+        foreach(player in level.players)
         {
-            if(isDefined(players[i]) && isAlive(players[i]))
-                players[i] suicide();
+            if(isAlive(player))
+                player suicide();
         }
     }
-
-    game["gunfight_overtime_triggered"] = undefined;
 }
 
 clearOvertimeFlagOnEnd()
 {
     level waittill("game_ended");
     game["gunfight_overtime_triggered"] = undefined;
+    level.overtimeCaptureActive = undefined;
 }
 
-// Overtime: reveals all enemies on radar and places skull waypoints on them
-// for the full 15-second overtime window. Objective IDs 200-299 are reserved.
+hideBombSiteModels()
+{
+    wait 0.05;
+    
+    bombzones = getentarray("bombzone", "targetname");
+    
+    foreach(zone in bombzones)
+    {
+        if(isDefined(zone.target))
+        {
+            visuals = getentarray(zone.target, "targetname");
+            foreach(visual in visuals)
+            {
+                if(isDefined(visual))
+                {
+                    visual.origin = visual.origin + (0, 0, -10000);
+                    visual hide();
+                }
+            }
+        }
+    }
+}
+
+hideHardpointModels()
+{
+    wait 0.05;
+    
+    hardpoints = getentarray("hq_hardpoint", "targetname");
+    
+    foreach(hp in hardpoints)
+    {
+        hp.original_origin = hp.origin;
+        
+        if(isDefined(hp.target))
+        {
+            visuals = getentarray(hp.target, "targetname");
+            foreach(visual in visuals)
+            {
+                if(isDefined(visual))
+                {
+                    visual.origin = visual.origin + (0, 0, -10000);
+                    visual hide();
+                }
+            }
+        }
+        
+        if(isDefined(hp.model))
+            hp hide();
+    }
+}
+
+findBombSiteCapturePoint()
+{
+    hardpoints = getentarray("hq_hardpoint", "targetname");
+
+    if(!isDefined(hardpoints) || hardpoints.size <= 0)
+        return undefined;
+
+    selectedOrigin = isDefined(hardpoints[0].original_origin) ? hardpoints[0].original_origin : hardpoints[0].origin;
+
+    return selectedOrigin;
+}
+
+overtimeCapturePoint(origin)
+{
+    level endon("game_ended");
+
+    captureRadius   = 256;
+    captureRequired = 3.0;
+    captureProgress = 0.0;
+    capturingTeam   = "";
+    
+    level.overtimeCaptureActive = false;
+
+    objId = 150;
+    objective_add(objId, "active", origin);
+    objective_icon(objId, "waypoint_defend");
+    objective_state(objId, "active");
+    
+    foreach(player in level.players)
+        objective_setvisibletoplayer(objId, player);
+
+    level thread overtimeCaptureCleanup(objId);
+    level thread createCaptureWaypoints(origin);
+
+    captureModel = spawn("script_model", origin + (0, 0, 10));
+    captureModel setModel("t6_wpn_supply_drop_ally");
+    captureModel.angles = (0, 0, 0);
+    
+    level thread overtimeCaptureCleanupModel(captureModel);
+
+    progressHUD = createServerFontString("hudbig", 1.6);
+    progressHUD.horzAlign = "center";
+    progressHUD.vertAlign = "top";
+    progressHUD.alignX = "center";
+    progressHUD.alignY = "top";
+    progressHUD.x = 0;
+    progressHUD.y = 80;
+    progressHUD.hidewheninmenu = true;
+    progressHUD.archived = false;
+
+    level thread overtimeCaptureHUDCleanup(progressHUD);
+
+    while(true)
+    {
+        alliesOnPoint = 0;
+        axisOnPoint   = 0;
+
+        foreach(player in level.players)
+        {
+            if(!isAlive(player))
+                continue;
+            if(Distance(player.origin, origin) <= captureRadius)
+            {
+                if(player.team == "allies")
+                    alliesOnPoint++;
+                else if(player.team == "axis")
+                    axisOnPoint++;
+            }
+        }
+
+        contested = (alliesOnPoint > 0 && axisOnPoint > 0);
+        level.overtimeCaptureActive = (alliesOnPoint > 0 || axisOnPoint > 0);
+
+        if(!contested)
+        {
+            if(alliesOnPoint > 0)
+            {
+                if(capturingTeam != "allies")
+                {
+                    capturingTeam   = "allies";
+                    captureProgress = 0.0;
+                }
+                captureProgress += 0.1;
+            }
+            else if(axisOnPoint > 0)
+            {
+                if(capturingTeam != "axis")
+                {
+                    capturingTeam   = "axis";
+                    captureProgress = 0.0;
+                }
+                captureProgress += 0.1;
+            }
+            else
+            {
+                captureProgress = 0.0;
+                capturingTeam = "";
+            }
+        }
+
+        pct = int(captureProgress / captureRequired * 100);
+        if(pct > 100)
+            pct = 100;
+        
+        pctRounded = int(pct / 10) * 10;
+
+        if(contested)
+            progressHUD setText("^3CONTESTED");
+        else if(capturingTeam == "allies")
+            progressHUD setText("^5CAPTURING: " + pctRounded + "%");
+        else if(capturingTeam == "axis")
+            progressHUD setText("^1CAPTURING: " + pctRounded + "%");
+        else
+            progressHUD setText("^7CAPTURE THE POINT");
+
+        if(captureProgress >= captureRequired)
+        {
+            progressHUD destroy();
+
+            if(capturingTeam == "allies")
+            {
+                foreach(player in level.players)
+                {
+                    if(isAlive(player) && player.team == "axis")
+                        player suicide();
+                }
+            }
+            else
+            {
+                foreach(player in level.players)
+                {
+                    if(isAlive(player) && player.team == "allies")
+                        player suicide();
+                }
+            }
+
+            return;
+        }
+
+        wait 0.1;
+    }
+}
+
+overtimeCaptureCleanup(objId)
+{
+    level waittill("game_ended");
+    objective_delete(objId);
+}
+
+createCaptureWaypoints(origin)
+{
+    level endon("game_ended");
+    
+    wait 0.1;
+    
+    waypoints = [];
+    
+    foreach(player in level.players)
+    {
+        if(!isDefined(player))
+            continue;
+            
+        waypoint = newClientHudElem(player);
+        waypoint.x = origin[0];
+        waypoint.y = origin[1];
+        waypoint.z = origin[2] + 40;
+        
+        waypoint setShader("waypoint_defend", 12, 12);
+        
+        waypoint setwaypoint(true, true);
+        waypoint.alpha = 1;
+        waypoint.color = (1, 1, 0);
+        waypoint.hidewheninmenu = true;
+        
+        waypoints[waypoints.size] = waypoint;
+        player.overtimeWaypoint = waypoint;
+    }
+    
+    level waittill("game_ended");
+    
+    foreach(player in level.players)
+    {
+        if(isDefined(player.overtimeWaypoint))
+        {
+            player.overtimeWaypoint destroy();
+            player.overtimeWaypoint = undefined;
+        }
+    }
+}
+
+rotateWaypointModel()
+{
+    level endon("game_ended");
+    
+    while(true)
+    {
+        self rotateyaw(360, 2);
+        wait 2;
+    }
+}
+
+overtimeCaptureCleanupModel(model)
+{
+    level waittill("game_ended");
+    if(isDefined(model))
+        model delete();
+}
+
+overtimeCaptureHUDCleanup(hud)
+{
+    level waittill("game_ended");
+    if(isDefined(hud))
+        hud destroy();
+}
+
 overtimeCountdown()
 {
     level endon("game_ended");
 
-    players = level.players;
-    for(i = 0; i < players.size; i++)
-    {
-        if(isDefined(players[i]))
-            players[i] setclientuivisibilityflag("g_compassShowEnemies", 1);
-    }
-
-    level thread overtimeObjectives();
     level thread overtimeVisibilityCleanup();
 
-    countdownHUD = createServerFontString("hudbig", 2.0);
-    countdownHUD setPoint("TOP", "TOP", 0, 100);
-    countdownHUD.color      = (1, 0, 0);
-    countdownHUD.glowcolor  = (1, 0.3, 0);
-    countdownHUD.glowAlpha  = 0.5;
+    countdownHUD = createServerFontString("hudbig", 1.6);
+    countdownHUD.horzAlign = "center";
+    countdownHUD.vertAlign = "top";
+    countdownHUD.alignX = "center";
+    countdownHUD.alignY = "top";
+    countdownHUD.x = 0;
+    countdownHUD.y = 50;
+    countdownHUD.color = (1, 0, 0);
+    countdownHUD.glowcolor = (1, 0.3, 0);
+    countdownHUD.glowAlpha = 0.5;
     countdownHUD.hidewheninmenu = true;
+    countdownHUD.archived = false;
 
-    for(i = 20; i > 0; i--)
+    timeRemaining = 20.0;
+    lastDisplayedSecond = 20;
+    
+    while(timeRemaining > 0)
     {
-        countdownHUD setText("^1OVERTIME: " + i);
-        wait 1;
+        if(isDefined(level.overtimeCaptureActive) && level.overtimeCaptureActive)
+        {
+            countdownHUD.color = (1, 1, 0);
+            
+            currentSecond = int(timeRemaining);
+            if(currentSecond != lastDisplayedSecond)
+            {
+                countdownHUD setText("^3OVERTIME: " + currentSecond + " (PAUSED)");
+                lastDisplayedSecond = currentSecond;
+            }
+        }
+        else
+        {
+            countdownHUD.color = (1, 0, 0);
+            
+            currentSecond = int(timeRemaining);
+            if(currentSecond != lastDisplayedSecond)
+            {
+                countdownHUD setText("^1OVERTIME: " + currentSecond);
+                lastDisplayedSecond = currentSecond;
+            }
+            
+            timeRemaining -= 0.1;
+            
+            if(timeRemaining < 0)
+                timeRemaining = 0;
+        }
+        
+        wait 0.1;
     }
 
     countdownHUD destroy();
 
-    players = level.players;
-    for(i = 0; i < players.size; i++)
-    {
-        if(isDefined(players[i]))
-            players[i] setclientuivisibilityflag("g_compassShowEnemies", 0);
-    }
-
     level notify("overtime_objectives_done");
+    level notify("overtime_complete");
 }
 
 overtimeVisibilityCleanup()
 {
     level waittill("game_ended");
 
-    players = level.players;
-    for(i = 0; i < players.size; i++)
-    {
-        if(isDefined(players[i]))
-            players[i] setclientuivisibilityflag("g_compassShowEnemies", 0);
-    }
+    if(!isDefined(game["gunfight_overtime_triggered"]))
+        return;
 
     level notify("overtime_objectives_done");
 }
 
-overtimeObjectives()
-{
-    level endon("game_ended");
-    level endon("overtime_objectives_done");
-
-    players = level.players;
-    objId   = 200;
-
-    for(i = 0; i < players.size; i++)
-    {
-        if(!isDefined(players[i]) || !isAlive(players[i]))
-            continue;
-
-        player = players[i];
-
-        objective_add(objId, "active", player.origin);
-        objective_onentity(objId, player);
-        objective_icon(objId, "waypoint_skull");
-
-        for(j = 0; j < players.size; j++)
-        {
-            if(isDefined(players[j]) && players[j].team != player.team)
-                objective_setvisibletoplayer(objId, players[j]);
-        }
-
-        objId++;
-    }
-
-    level waittill("overtime_objectives_done");
-
-    for(id = 200; id < objId; id++)
-        objective_delete(id);
-}
-
-// Health is rounded to the nearest 10 to cap unique configstrings well under
-// the engine's hard limit of 488 (21 steps x 21 steps = ~441 max for 2v2).
 teamHealthHUD()
 {
+    level notify("kill_health_hud");
+    level endon("kill_health_hud");
     level endon("game_ended");
 
-    healthHUD = createServerFontString("hudbig", 1.4);
-    healthHUD setPoint("TOP", "TOP", 0, 5);
+    foreach(player in level.players)
+    {
+        if(!isDefined(player.hasHealthHUD))
+            player thread playerHealthHUD();
+    }
+}
+
+monitorPlayerConnections()
+{
+    level endon("game_ended");
+    
+    while(true)
+    {
+        level waittill("connected", player);
+        player.hasHealthHUD = undefined;
+        player thread playerHealthHUD();
+    }
+}
+
+playerHealthHUD()
+{
+    level endon("game_ended");
+    self endon("disconnect");
+    
+    if(isDefined(self.hasHealthHUD))
+        return;
+        
+    self.hasHealthHUD = true;
+    
+    healthHUD = newClientHudElem(self);
+    healthHUD.horzAlign = "center";
+    healthHUD.vertAlign = "top";
+    healthHUD.alignX = "center";
+    healthHUD.alignY = "top";
+    healthHUD.x = 0;
+    healthHUD.y = 10;
+    healthHUD.fontScale = 1.4;
+    healthHUD.font = "hudbig";
     healthHUD.hidewheninmenu = true;
+    healthHUD.archived = false;
 
     lastString = "";
 
     while(true)
     {
-        alliesHealth = 0;
-        axisHealth   = 0;
+        myTeamHealth = 0;
+        enemyTeamHealth = 0;
 
-        players = level.players;
-        for(i = 0; i < players.size; i++)
+        foreach(player in level.players)
         {
-            if(!isDefined(players[i]) || !isAlive(players[i]))
+            if(!isAlive(player))
                 continue;
 
-            if(players[i].team == "allies")
-                alliesHealth += players[i].health;
-            else if(players[i].team == "axis")
-                axisHealth += players[i].health;
+            if(player.team == self.team)
+                myTeamHealth += player.health;
+            else
+                enemyTeamHealth += player.health;
         }
 
-        alliesHealth = int(alliesHealth / 10) * 10;
-        axisHealth   = int(axisHealth   / 10) * 10;
+        myTeamHealth = int(myTeamHealth / 10) * 10;
+        enemyTeamHealth = int(enemyTeamHealth / 10) * 10;
 
-        newString = "^5" + alliesHealth + " ^7- ^1" + axisHealth;
+        newString = "^5" + myTeamHealth + " ^7- ^1" + enemyTeamHealth;
 
         if(newString != lastString)
         {
@@ -513,25 +824,41 @@ givecustomloadout(takeallweapons, alreadyspawned)
         self giveMaxAmmo(secondaryweapon);
     }
 
-    if(isDefined(level.gunfight_current_loadout["lethal"]))
+    self giveWeapon("knife_mp");
+
+    if(!isDefined(alreadyspawned) || !alreadyspawned)
+        self setspawnweapon(currentweapon);
+
+    self thread giveDelayedEquipment();
+
+    return currentweapon;
+}
+
+giveDelayedEquipment()
+{
+    self endon("death");
+    self endon("disconnect");
+    level endon("game_ended");
+    
+    while(isDefined(level.inprematchperiod) && level.inprematchperiod)
+        wait 0.05;
+    
+    wait 3;
+    
+    if(isDefined(level.gunfight_current_loadout["lethal"]) && isAlive(self))
     {
         lethal = level.gunfight_current_loadout["lethal"];
         self giveWeapon(lethal);
         self setWeaponAmmoClip(lethal, 1);
         self switchToOffhand(lethal);
     }
-
-    if(isDefined(level.gunfight_current_loadout["tactical"]))
+    
+    wait 2;
+    
+    if(isDefined(level.gunfight_current_loadout["tactical"]) && isAlive(self))
     {
         tactical = level.gunfight_current_loadout["tactical"];
         self giveWeapon(tactical);
         self setWeaponAmmoClip(tactical, 1);
     }
-
-    self giveWeapon("knife_mp");
-
-    if(!isDefined(alreadyspawned) || !alreadyspawned)
-        self setspawnweapon(currentweapon);
-
-    return currentweapon;
 }
