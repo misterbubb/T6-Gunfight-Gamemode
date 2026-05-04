@@ -1,5 +1,6 @@
 #include maps\mp\gametypes\_globallogic_audio;
 #include maps\mp\gametypes\_globallogic_score;
+#include maps\mp\gametypes\_globallogic_ui;
 #include maps\mp\gametypes\_spawnlogic;
 #include maps\mp\gametypes\_spawning;
 #include maps\mp\gametypes\_callbacksetup;
@@ -28,7 +29,7 @@ main()
     level.teambased             = 1;
     level.overrideteamscore     = 1;
     level.endgameonscorelimit   = 0;
-    level.disableClassSelection = 1;
+    level.disableclassselection = 1;
     level.disableweapondrop     = 1;
     level.loadoutkillstreaksenabled = 0;
     level.maxkillstreaks        = 0;
@@ -43,6 +44,7 @@ main()
     setDvar("scr_player_forcerespawn",    0);
     setDvar("scr_game_allowkillcam",      1);
     setDvar("scr_game_disableweapondrop", 1);
+    setDvar("scr_sd_disableClassSelection", 1);
 
     level.onstartgametype       = ::onstartgametype;
     level.onspawnplayer         = ::onspawnplayer;
@@ -131,6 +133,56 @@ onstartgametype()
 
     level thread teamHealthHUD();
     level thread monitorPlayerConnections();
+    level thread autoSelectClass();
+}
+
+autoSelectClass()
+{
+    level endon("game_ended");
+    
+    for(;;)
+    {
+        level waittill("connected", player);
+        
+        player.pers["class"] = level.defaultclass;
+        player.class = level.defaultclass;
+        
+        player thread forceCloseMenus();
+        player thread checkAlreadyOnTeam();
+    }
+}
+
+forceCloseMenus()
+{
+    self endon("disconnect");
+    self endon("spawned_player");
+    level endon("game_ended");
+    
+    for(i = 0; i < 20; i++)
+    {
+        self thread maps\mp\gametypes\_globallogic_ui::closeMenus();
+        wait 0.05;
+    }
+}
+
+checkAlreadyOnTeam()
+{
+    self endon("disconnect");
+    level endon("game_ended");
+    
+    wait 0.5;
+    
+    if(isDefined(self.pers["team"]) && self.pers["team"] != "spectator")
+    {
+        if(self.sessionstate != "playing")
+        {
+            self.pers["class"] = level.defaultclass;
+            self.class = level.defaultclass;
+            
+            if(isDefined(level.spawnclient))
+                self [[level.spawnclient]]();
+        }
+    }
 }
 
 onroundswitch()

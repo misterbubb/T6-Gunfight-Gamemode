@@ -11,5 +11,13 @@
 
 ## Installation
 
-Manually copy folder here: `%localappdata%\Plutonium\storage\t6\mods\`
-if the mods folder isn't there then create it yourself.
+1. Click the green **Code** button on the GitHub page and select **Download ZIP**.  
+
+2. Extract the ZIP file. Open the first folder, you should then see the README and the gunfight_mp folder.
+
+3. Open Windows search, paste this path, and press Enter:  
+   `%localappdata%\Plutonium\storage\t6\`
+
+4. If a **mods** folder is not present, create it.
+
+5. Move the extracted mod folder (gunfight_mp) into the **mods** folder.
