@@ -21,15 +21,3 @@
 4. If a **mods** folder is not present, create it.
 
 5. Move the extracted mod folder (gunfight_mp) into the **mods** folder.
-
-## Changelog
-
-### Version 2.2
-- Fixed configstring overflow error caused by health HUD
-
-### Version 2.1
-- Equipment now given after timed delays (3s lethal, 5s tactical) instead of immediately
-- Overtime capture point spawns at consistent location for competitive balance
-- Class selection menu disabled - players spawn automatically
-- Added team/enemy health HUD display
-- Added PowerShell installer script for automated installation
