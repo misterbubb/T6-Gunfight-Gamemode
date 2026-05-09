@@ -374,10 +374,13 @@ ontimelimit()
     level thread clearOvertimeFlagOnEnd();
     level thread overtimeCountdown();
 
-    captureOrigin = findBombSiteCapturePoint();
+    captureHardpoint = findBombSiteCapturePoint();
     
-    if(isDefined(captureOrigin))
-        level thread overtimeCapturePoint(captureOrigin);
+    if(isDefined(captureHardpoint))
+    {
+        captureOrigin = isDefined(captureHardpoint.original_origin) ? captureHardpoint.original_origin : captureHardpoint.origin;
+        level thread overtimeCapturePoint(captureOrigin, captureHardpoint);
+    }
 
     level waittill("overtime_complete");
 
@@ -500,12 +503,13 @@ findBombSiteCapturePoint()
     if(!isDefined(hardpoints) || hardpoints.size <= 0)
         return undefined;
 
-    selectedOrigin = isDefined(hardpoints[0].original_origin) ? hardpoints[0].original_origin : hardpoints[0].origin;
+    selectedHardpoint = hardpoints[0];
+    selectedOrigin = isDefined(selectedHardpoint.original_origin) ? selectedHardpoint.original_origin : selectedHardpoint.origin;
 
-    return selectedOrigin;
+    return selectedHardpoint;
 }
 
-overtimeCapturePoint(origin)
+overtimeCapturePoint(origin, hardpoint)
 {
     level endon("game_ended");
 
@@ -515,6 +519,9 @@ overtimeCapturePoint(origin)
     capturingTeam   = "";
     
     level.overtimeCaptureActive = false;
+
+    if(isDefined(hardpoint) && isDefined(hardpoint.script_index))
+        level setclientfield("hardpoint", hardpoint.script_index);
 
     objId = 150;
     objective_add(objId, "active", origin);
@@ -640,6 +647,7 @@ overtimeCaptureCleanup(objId)
 {
     level waittill("game_ended");
     objective_delete(objId);
+    level setclientfield("hardpoint", 0);
 }
 
 createCaptureWaypoints(origin)
@@ -814,19 +822,59 @@ playerHealthHUD()
         
     self.hasHealthHUD = true;
     
-    healthHUD = newClientHudElem(self);
-    healthHUD.horzAlign = "center";
-    healthHUD.vertAlign = "top";
-    healthHUD.alignX = "center";
-    healthHUD.alignY = "top";
-    healthHUD.x = 0;
-    healthHUD.y = 10;
-    healthHUD.fontScale = 1.4;
-    healthHUD.font = "hudbig";
-    healthHUD.hidewheninmenu = true;
-    healthHUD.archived = false;
-
-    lastString = "";
+    myTeamLabel = newClientHudElem(self);
+    myTeamLabel.horzAlign = "left";
+    myTeamLabel.vertAlign = "top";
+    myTeamLabel.alignX = "left";
+    myTeamLabel.alignY = "top";
+    myTeamLabel.x = 10;
+    myTeamLabel.y = 10;
+    myTeamLabel.fontScale = 1.2;
+    myTeamLabel.font = "objective";
+    myTeamLabel.color = (0.3, 0.6, 1);
+    myTeamLabel.hidewheninmenu = true;
+    myTeamLabel.archived = false;
+    myTeamLabel setText("Team:");
+    
+    myTeamValue = newClientHudElem(self);
+    myTeamValue.horzAlign = "left";
+    myTeamValue.vertAlign = "top";
+    myTeamValue.alignX = "left";
+    myTeamValue.alignY = "top";
+    myTeamValue.x = 60;
+    myTeamValue.y = 10;
+    myTeamValue.fontScale = 1.2;
+    myTeamValue.font = "objective";
+    myTeamValue.color = (0.3, 0.6, 1);
+    myTeamValue.hidewheninmenu = true;
+    myTeamValue.archived = false;
+    
+    enemyLabel = newClientHudElem(self);
+    enemyLabel.horzAlign = "left";
+    enemyLabel.vertAlign = "top";
+    enemyLabel.alignX = "left";
+    enemyLabel.alignY = "top";
+    enemyLabel.x = 10;
+    enemyLabel.y = 30;
+    enemyLabel.fontScale = 1.2;
+    enemyLabel.font = "objective";
+    enemyLabel.color = (1, 0.3, 0.3);
+    enemyLabel.hidewheninmenu = true;
+    enemyLabel.archived = false;
+    enemyLabel setText("Enemy:");
+    
+    enemyValue = newClientHudElem(self);
+    enemyValue.horzAlign = "left";
+    enemyValue.vertAlign = "top";
+    enemyValue.alignX = "left";
+    enemyValue.alignY = "top";
+    enemyValue.x = 60;
+    enemyValue.y = 30;
+    enemyValue.fontScale = 1.2;
+    enemyValue.font = "objective";
+    enemyValue.color = (1, 0.3, 0.3);
+    enemyValue.hidewheninmenu = true;
+    enemyValue.archived = false;
 
     while(true)
     {
@@ -844,18 +892,10 @@ playerHealthHUD()
                 enemyTeamHealth += player.health;
         }
 
-        myTeamHealth = int(myTeamHealth / 10) * 10;
-        enemyTeamHealth = int(enemyTeamHealth / 10) * 10;
+        myTeamValue setValue(myTeamHealth);
+        enemyValue setValue(enemyTeamHealth);
 
-        newString = "^5" + myTeamHealth + " ^7- ^1" + enemyTeamHealth;
-
-        if(newString != lastString)
-        {
-            healthHUD setText(newString);
-            lastString = newString;
-        }
-
-        wait 0.1;
+        wait 0.2;
     }
 }
 
